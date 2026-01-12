@@ -1,0 +1,42 @@
+{
+  "name": "eslint-plugin-aegis",
+  "version": "1.0.0",
+  "description": "Aegis (埃癸斯) 是希腊神话中雅典娜和宙斯持有的神盾。它象征着保护、权威与智慧。",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup index.js --format cjs,esm --dts --clean --splitting"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LLLaiYoung/eslint-plugin-aegis.git"
+  },
+  "keywords": [
+    "eslint",
+    "eslint-plugin",
+    "eslintplugin",
+    "code-quality",
+    "aegis"
+  ],
+  "author": "LaiYoung_",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/LLLaiYoung/eslint-plugin-aegis/issues"
+  },
+  "homepage": "https://github.com/LLLaiYoung/eslint-plugin-aegis#readme",
+  "peerDependencies": {
+    "eslint": ">=8.0.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}

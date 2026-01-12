@@ -1,0 +1,219 @@
+"use strict";Object.defineProperty(exports, "__esModule", {value: true});// lib/rules/no-duplicate-string.js
+var no_duplicate_string_default = {
+  meta: {
+    type: "problem",
+    docs: {
+      description: "Disallow duplicate strings with granular configuration"
+    },
+    schema: [
+      {
+        type: "object",
+        properties: {
+          threshold: { type: "integer", minimum: 2 },
+          minLength: { type: "integer", minimum: 2 },
+          ignoreStrings: { type: "array", items: { type: "string" } },
+          ignorePatterns: { type: "array", items: { type: "string" } },
+          // 接收正则字符串
+          ignoreTSLiteralTypes: { type: "boolean" }
+          // 是否忽略 TS 的字面量类型
+        },
+        additionalProperties: false
+      }
+    ],
+    messages: {
+      duplicate: "\u5B57\u7B26\u4E32 '{{str}}' \u91CD\u590D\u51FA\u73B0\u4E86 {{count}} \u6B21 (\u9608\u503C: {{threshold}}). \u51FA\u73B0\u884C\u53F7: {{lines}}."
+    }
+  },
+  create(context) {
+    const config = context.options[0] || {};
+    const threshold = config.threshold || 2;
+    const minLength = config.minLength || 5;
+    const ignoreTSLiteralTypes = config.ignoreTSLiteralTypes !== false;
+    const ignoreSet = new Set(config.ignoreStrings || []);
+    const ignorePatterns = (config.ignorePatterns || []).map(
+      (p) => new RegExp(p)
+    );
+    const stringMap = /* @__PURE__ */ new Map();
+    function record(node, value) {
+      if (value.length < minLength) return;
+      if (ignoreSet.has(value)) return;
+      if (ignorePatterns.some((regex) => regex.test(value))) return;
+      let curr = node.parent;
+      let depth = 0;
+      while (curr && depth < 4) {
+        if (curr.type === "CallExpression") {
+          let funcName = "";
+          if (curr.callee.type === "Identifier") {
+            funcName = curr.callee.name;
+          } else if (curr.callee.type === "MemberExpression" && curr.callee.property.type === "Identifier") {
+            funcName = curr.callee.property.name;
+          }
+          if (funcName && ignorePatterns.some((regex) => regex.test(funcName))) {
+            return;
+          }
+        }
+        curr = curr.parent;
+        depth++;
+      }
+      if (!stringMap.has(value)) {
+        stringMap.set(value, []);
+      }
+      stringMap.get(value).push(node);
+    }
+    return {
+      // 监听普通字面量: "hello", 'world'
+      Literal(node) {
+        if (typeof node.value === "string") {
+          if (node.parent && (node.parent.type === "ImportDeclaration" || node.parent.type === "ExportNamedDeclaration")) {
+            return;
+          }
+          if (ignoreTSLiteralTypes && node.parent && node.parent.type === "TSLiteralType") {
+            return;
+          }
+          if (node.parent && node.parent.type === "Property" && node.parent.key === node) {
+            return;
+          }
+          record(node, node.value);
+        }
+      },
+      // 监听不带变量的模板字符串: `hello`
+      TemplateLiteral(node) {
+        if (node.expressions.length === 0 && node.quasis.length === 1) {
+          const rawValue = node.quasis[0].value.raw;
+          if (rawValue) {
+            record(node, rawValue);
+          }
+        }
+      },
+      // 程序结束时，统计并报错
+      "Program:exit"() {
+        for (const [str, nodes] of stringMap) {
+          if (nodes.length >= threshold) {
+            const lineNumbers = nodes.map((n) => n.loc.start.line).join(", ");
+            nodes.forEach((node) => {
+              context.report({
+                node,
+                messageId: "duplicate",
+                data: {
+                  str: str.length > 20 ? str.slice(0, 20) + "..." : str,
+                  // 截断过长的错误提示
+                  count: nodes.length,
+                  threshold,
+                  lines: lineNumbers
+                }
+              });
+            });
+          }
+        }
+      }
+    };
+  }
+};
+
+// lib/configs/recommended.js
+var recommended_default = {
+  rules: {
+    "aegis/no-duplicate-string": [
+      "error",
+      {
+        threshold: 3,
+        minLength: 5,
+        ignorePatterns: [
+          "^/",
+          // 路径
+          "^http(s)?://",
+          // URL
+          "^#([0-9A-Fa-f]{3,6})$",
+          // HEX 颜色
+          "^[0-9]+(px|rem|em|vh|vw|%)$",
+          // CSS 单位
+          "application/json",
+          // 常见 MIME
+          "YYYY-MM-DD"
+          // 日期格式
+        ]
+      }
+    ]
+    // 未来在这里添加 aegis/other-rule
+  }
+};
+
+// package.json
+var package_default = {
+  name: "eslint-plugin-aegis",
+  version: "1.0.0",
+  description: "Aegis (\u57C3\u7678\u65AF) \u662F\u5E0C\u814A\u795E\u8BDD\u4E2D\u96C5\u5178\u5A1C\u548C\u5B99\u65AF\u6301\u6709\u7684\u795E\u76FE\u3002\u5B83\u8C61\u5F81\u7740\u4FDD\u62A4\u3001\u6743\u5A01\u4E0E\u667A\u6167\u3002",
+  type: "module",
+  main: "./dist/index.cjs",
+  module: "./dist/index.js",
+  types: "./dist/index.d.ts",
+  exports: {
+    ".": {
+      import: "./dist/index.js",
+      require: "./dist/index.cjs"
+    }
+  },
+  scripts: {
+    build: "tsup index.js --format cjs,esm --dts --clean --splitting"
+  },
+  repository: {
+    type: "git",
+    url: "git+https://github.com/LLLaiYoung/eslint-plugin-aegis.git"
+  },
+  keywords: [
+    "eslint",
+    "eslint-plugin",
+    "eslintplugin",
+    "code-quality",
+    "aegis"
+  ],
+  author: "LaiYoung_",
+  license: "ISC",
+  bugs: {
+    url: "https://github.com/LLLaiYoung/eslint-plugin-aegis/issues"
+  },
+  homepage: "https://github.com/LLLaiYoung/eslint-plugin-aegis#readme",
+  peerDependencies: {
+    eslint: ">=8.0.0"
+  },
+  devDependencies: {
+    tsup: "^8.5.1",
+    typescript: "^5.9.3"
+  }
+};
+
+// index.js
+var plugin = {
+  // 元数据
+  meta: {
+    name: package_default.name,
+    // 自动同步 "eslint-plugin-aegis"
+    version: package_default.version
+    // 自动同步
+  },
+  // 1. 导出规则定义
+  rules: {
+    "no-duplicate-string": no_duplicate_string_default
+    // 'future-rule': futureRule // 以后加规则就在这里加一行
+  }
+};
+plugin.configs = {
+  // Flat Config (ESLint 9+ 直接引入方式) - 推荐
+  // 使用方法: export default [ aegis.configs.recommended ];
+  recommended: {
+    plugins: {
+      aegis: plugin
+    },
+    rules: recommended_default.rules
+  }
+};
+var meta = plugin.meta;
+var rules = plugin.rules;
+var configs = plugin.configs;
+var index_default = plugin;
+
+
+
+
+
+exports.configs = configs; exports.default = index_default; exports.meta = meta; exports.rules = rules;
