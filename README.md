@@ -1,6 +1,8 @@
 # eslint-plugin-aegis
 
-Aegis (埃癸斯) 是希腊神话中雅典娜和宙斯持有的神盾。它象征着保护、权威与智慧。该插件旨在为你的代码提供全方位的质量保障。
+Aegis (埃癸斯) 是希腊神话中雅典娜和宙斯持有的神盾。它象征着保护、权威与智慧。
+
+该插件不是一个全新的轮子，而是针对当前市面上已有规则（如 SonarJS 等）无法满足的特定检测需求进行的补充。我们欢迎开发者根据实际开发场景提出自己的需求，共同丰富完善这个插件，从而提升代码的可读性、可维护性与可扩展性。
 
 ## 安装
 
@@ -30,6 +32,12 @@ export default [
     },
     rules: {
       "aegis/no-duplicate-string": ["error", { threshold: 3, minLength: 5 }],
+      "aegis/no-implicit-complex-object": [
+        "error",
+        {
+          propertyThreshold: 2,
+        },
+      ],
     },
   },
 ];
@@ -40,6 +48,9 @@ export default [
 ### `aegis/no-duplicate-string`
 
 禁止代码中出现重复的字符串。这有助于提取公共常量，提高代码的可维护性。
+
+> [!NOTE] > **为什么要开发这个规则？**
+> 虽然市面上已有如 `sonarjs/no-duplicate-string` 等规则，但在实际业务开发中，它们往往存在配置不够灵活的问题（例如无法通过正则忽略特定函数调用中的字符串、无法精细控制是否忽略 TS 字面量类型等）。本规则旨在提供更细粒度的配置，以平衡代码质量与开发效率。
 
 #### 配置项 (Options)
 
@@ -75,14 +86,35 @@ export default [
 }]
 ```
 
-## 本地调试
+### `aegis/no-implicit-complex-object`
 
-如果你是在本地开发并希望在其他项目中测试：
+当定义的变量是较为复杂的对象字面量时，强制要求显式定义类型（Interface 或 Type）。
 
-1.  在本目录下运行 `yarn build`。
-2.  在目标项目运行 `yarn add /path/to/eslint-plugin-aegis -D`。
-3.  在目标项目的 `eslint.config.js` 中按上述方式引入。
+> [!NOTE] > **为什么要开发这个规则？**
+> 在 TypeScript 开发中，虽然编译器具备强大的类型推导能力，但对于属性较多的复杂对象，过分依赖隐式推导会导致：
+>
+> 1. **可读性下降**：开发者难以一眼看出对象的数据结构。
+> 2. **维护成本增加**：当对象结构变化时，隐式推导可能产生非预期的 `any` 或联合类型，增加排错难度。
+> 3. **Vue 3 体验问题**：在使用 `ref()` 或 `reactive()` 时，若不显式定义泛型，IDE 的代码提示可能不准确。
+>    本规则旨在鼓励开发者为复杂数据结构建立明确的“契约”（Interface/Type），从而提升代码的健壮性。
 
-## License
+#### 配置项 (Options)
 
-[ISC](LICENSE)
+| 属性                 | 类型       | 默认值  | 说明                                                       |
+| :------------------- | :--------- | :------ | :--------------------------------------------------------- |
+| `propertyThreshold`  | `integer`  | `2`     | 属性数量阈值。当对象属性达到该值时且未显式定义类型时报错。 |
+| `ignoreVue3Wrappers` | `boolean`  | `false` | 是否忽略 Vue 3 的 `ref()` 和 `reactive()` 包装对象。       |
+| `ignorePatterns`     | `string[]` | `[]`    | 正则表达式列表，匹配的变量名将被忽略。                     |
+
+#### 特性补充
+
+1.  **Vue 3 支持**：自动识别并检查 `ref({ ... })` 和 `reactive({ ... })` 中的对象。
+2.  **泛型支持**：如果已经写了泛型（如 `ref<IUser>({ ... })`），则会自动跳过检查。
+
+#### 示例配置
+
+```javascript
+"aegis/no-implicit-complex-object": ["error", {
+  "propertyThreshold": 2
+}]
+```

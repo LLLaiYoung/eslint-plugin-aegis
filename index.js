@@ -1,5 +1,6 @@
-import noDuplicateString from "./lib/rules/no-duplicate-string.js";
 import recommendedConfig from "./lib/configs/recommended.js";
+import noDuplicateString from "./lib/rules/no-duplicate-string.js";
+import noImplicitComplexObject from "./lib/rules/no-implicit-complex-object.js";
 // 直接引入 package.json
 import pkg from "./package.json" assert { type: "json" };
 
@@ -12,6 +13,7 @@ const plugin = {
   // 1. 导出规则定义
   rules: {
     "no-duplicate-string": noDuplicateString,
+    "no-implicit-complex-object": noImplicitComplexObject,
     // 'future-rule': futureRule // 以后加规则就在这里加一行
   },
 };

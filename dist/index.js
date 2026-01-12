@@ -1,3 +1,37 @@
+// lib/configs/recommended.js
+var recommended_default = {
+  rules: {
+    "aegis/no-duplicate-string": [
+      "error",
+      {
+        threshold: 2,
+        minLength: 5,
+        ignorePatterns: [
+          "^/",
+          // 路径
+          "^http(s)?://",
+          // URL
+          "^#([0-9A-Fa-f]{3,6})$",
+          // HEX 颜色
+          "^[0-9]+(px|rem|em|vh|vw|%)$",
+          // CSS 单位
+          "application/json",
+          // 常见 MIME
+          "YYYY-MM-DD"
+          // 日期格式
+        ]
+      }
+    ],
+    "aegis/no-implicit-complex-object": [
+      "error",
+      {
+        propertyThreshold: 2
+      }
+    ]
+    // 未来在这里添加 aegis/other-rule
+  }
+};
+
 // lib/rules/no-duplicate-string.js
 var no_duplicate_string_default = {
   meta: {
@@ -21,7 +55,7 @@ var no_duplicate_string_default = {
       }
     ],
     messages: {
-      duplicate: "\u5B57\u7B26\u4E32 '{{str}}' \u91CD\u590D\u51FA\u73B0\u4E86 {{count}} \u6B21 (\u9608\u503C: {{threshold}}). \u51FA\u73B0\u884C\u53F7: {{lines}}."
+      duplicate: "[Aegis] \u5B57\u7B26\u4E32 '{{str}}' \u91CD\u590D\u51FA\u73B0\u4E86 {{count}} \u6B21 (\u9608\u503C: {{threshold}}). \u51FA\u73B0\u884C\u53F7: {{lines}}."
     }
   },
   create(context) {
@@ -110,31 +144,79 @@ var no_duplicate_string_default = {
   }
 };
 
-// lib/configs/recommended.js
-var recommended_default = {
-  rules: {
-    "aegis/no-duplicate-string": [
-      "error",
+// lib/rules/no-implicit-complex-object.js
+var no_implicit_complex_object_default = {
+  meta: {
+    type: "suggestion",
+    docs: {
+      description: "Enforce explicit type annotation for complex object literals",
+      recommended: true
+    },
+    schema: [
       {
-        threshold: 3,
-        minLength: 5,
-        ignorePatterns: [
-          "^/",
-          // 路径
-          "^http(s)?://",
-          // URL
-          "^#([0-9A-Fa-f]{3,6})$",
-          // HEX 颜色
-          "^[0-9]+(px|rem|em|vh|vw|%)$",
-          // CSS 单位
-          "application/json",
-          // 常见 MIME
-          "YYYY-MM-DD"
-          // 日期格式
-        ]
+        type: "object",
+        properties: {
+          // 只有属性数量超过这个值，才强制要求写类型
+          propertyThreshold: { type: "integer", minimum: 1 },
+          // 是否忽略 Vue 3 的 ref/reactive 包装对象
+          ignoreVue3Wrappers: { type: "boolean" },
+          // 忽略特定命名的变量 (支持正则)
+          ignorePatterns: { type: "array", items: { type: "string" } }
+        },
+        additionalProperties: false
       }
-    ]
-    // 未来在这里添加 aegis/other-rule
+    ],
+    messages: {
+      missingType: "[Aegis] \u590D\u6742\u5BF9\u8C61 '{{name}}' ({{props}} \u4E2A\u5C5E\u6027) \u7F3A\u5C11\u663E\u5F0F\u7C7B\u578B\u5B9A\u4E49\u3002\u8BF7\u5B9A\u4E49 Interface \u6216 Type \u4EE5\u786E\u4FDD\u6570\u636E\u7ED3\u6784\u5B89\u5168\u3002"
+    }
+  },
+  create(context) {
+    const config = context.options[0] || {};
+    const threshold = config.propertyThreshold || 2;
+    const ignoreVue3Wrappers = config.ignoreVue3Wrappers || false;
+    const ignorePatterns = (config.ignorePatterns || []).map(
+      (p) => new RegExp(p)
+    );
+    return {
+      VariableDeclarator(node) {
+        const varName = node.id.name;
+        if (varName && ignorePatterns.some((regex) => regex.test(varName))) {
+          return;
+        }
+        let init = node.init;
+        if (!init) return;
+        const isWrapperCall = !ignoreVue3Wrappers && init.type === "CallExpression" && init.callee.type === "Identifier" && (init.callee.name === "ref" || init.callee.name === "reactive");
+        let objectExpression = null;
+        if (init.type === "ObjectExpression") {
+          objectExpression = init;
+        } else if (isWrapperCall) {
+          if (init.typeArguments || init.typeParameters) {
+            return;
+          }
+          const firstArg = init.arguments[0];
+          if (firstArg && firstArg.type === "ObjectExpression") {
+            objectExpression = firstArg;
+          }
+        }
+        if (!objectExpression) {
+          return;
+        }
+        if (node.id.typeAnnotation) {
+          return;
+        }
+        const propertyCount = objectExpression.properties.length;
+        if (propertyCount >= threshold) {
+          context.report({
+            node: node.id,
+            messageId: "missingType",
+            data: {
+              name: node.id.name || "variable",
+              props: propertyCount
+            }
+          });
+        }
+      }
+    };
   }
 };
 
@@ -193,7 +275,8 @@ var plugin = {
   },
   // 1. 导出规则定义
   rules: {
-    "no-duplicate-string": no_duplicate_string_default
+    "no-duplicate-string": no_duplicate_string_default,
+    "no-implicit-complex-object": no_implicit_complex_object_default
     // 'future-rule': futureRule // 以后加规则就在这里加一行
   }
 };
