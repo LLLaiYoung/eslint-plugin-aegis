@@ -426,7 +426,7 @@ var no_magic_numbers_strict_default = {
 // package.json
 var package_default = {
   name: "eslint-plugin-aegis",
-  version: "1.0.0",
+  version: "1.0.1",
   description: "Aegis (\u57C3\u7678\u65AF) \u662F\u5E0C\u814A\u795E\u8BDD\u4E2D\u96C5\u5178\u5A1C\u548C\u5B99\u65AF\u6301\u6709\u7684\u795E\u76FE\u3002\u5B83\u8C61\u5F81\u7740\u4FDD\u62A4\u3001\u6743\u5A01\u4E0E\u667A\u6167\u3002",
   type: "module",
   main: "./dist/index.cjs",
@@ -438,6 +438,9 @@ var package_default = {
       require: "./dist/index.cjs"
     }
   },
+  files: [
+    "dist"
+  ],
   scripts: {
     build: "tsup index.js --format cjs,esm --dts --clean --splitting"
   },

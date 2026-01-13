@@ -138,7 +138,10 @@ export default [
 | `ignoreArrayIndexes`            | `boolean`  | `false` | 是否忽略数组索引 `arr[0]`。                                                                |
 | `ignoreEnums`                   | `boolean`  | `false` | 是否忽略 `enum` 定义中的数字。                                                             |
 | `ignoreTypeIndexes`             | `boolean`  | `false` | 是否忽略 TS 类型索引 `Data[0]`。                                                           |
+| `ignoreNumericLiteralTypes`     | `boolean`  | `false` | 是否忽略 TS 数字字面量类型 (如 `type T = 1 \| 2`)。                                        |
 | `ignoreReadonlyClassProperties` | `boolean`  | `false` | 是否忽略类中的 `readonly` 属性初始值。                                                     |
+| `ignoreDefaultValues`           | `boolean`  | `false` | 是否忽略参数默认值中的数字 (如 `function(a = 1)`)。                                        |
+| `ignoreClassFieldInitialValues` | `boolean`  | `false` | 是否忽略类字段初始值 (如 `class A { prop = 1 }`)。                                         |
 | `ignorePropertyPatterns`        | `string[]` | `[]`    | 正则表达式列表，匹配的对象属性名将被忽略。                                                 |
 | `ignoreCalleePatterns`          | `string[]` | `[]`    | 正则表达式列表，作为这些函数或**类构造函数**参数的数字将被忽略 (如 `setTimeout`, `Date`)。 |
 
