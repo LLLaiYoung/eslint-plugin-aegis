@@ -5,7 +5,13 @@ var recommended_default = {
       "error",
       {
         threshold: 2,
-        minLength: 5,
+        minLength: 2,
+        ignoreStrings: [
+          "application/json",
+          // 常见 MIME
+          "YYYY-MM-DD"
+          // 日期格式
+        ],
         ignorePatterns: [
           "^/",
           // 路径
@@ -13,12 +19,8 @@ var recommended_default = {
           // URL
           "^#([0-9A-Fa-f]{3,6})$",
           // HEX 颜色
-          "^[0-9]+(px|rem|em|vh|vw|%)$",
+          "^[0-9]+(px|rem|em|vh|vw|%)$"
           // CSS 单位
-          "application/json",
-          // 常见 MIME
-          "YYYY-MM-DD"
-          // 日期格式
         ]
       }
     ],
@@ -26,6 +28,19 @@ var recommended_default = {
       "error",
       {
         propertyThreshold: 2
+      }
+    ],
+    "aegis/no-magic-numbers-strict": [
+      "error",
+      {
+        ignore: [-1, 0, 1, 2],
+        ignoreArrayIndexes: true,
+        ignoreTypeIndexes: true,
+        ignoreEnums: true,
+        detectObjects: true,
+        enforceConst: true,
+        ignorePropertyPatterns: ["^width$|Width$"],
+        ignoreCalleePatterns: ["^(Date|setTimeout|setInterval|delay)$"]
       }
     ]
     // 未来在这里添加 aegis/other-rule
@@ -220,6 +235,194 @@ var no_implicit_complex_object_default = {
   }
 };
 
+// lib/rules/no-magic-numbers-strict.js
+var no_magic_numbers_strict_default = {
+  meta: {
+    type: "suggestion",
+    docs: {
+      description: "Disallow magic numbers with TS support and regex property ignoring",
+      recommended: false
+    },
+    schema: [
+      {
+        type: "object",
+        properties: {
+          detectObjects: { type: "boolean", default: false },
+          enforceConst: { type: "boolean", default: false },
+          ignore: {
+            type: "array",
+            items: { type: "number" },
+            uniqueItems: true
+          },
+          ignoreArrayIndexes: { type: "boolean", default: false },
+          ignoreDefaultValues: { type: "boolean", default: false },
+          ignoreClassFieldInitialValues: { type: "boolean", default: false },
+          // === TypeScript 特有参数补充 ===
+          ignoreEnums: { type: "boolean", default: false },
+          ignoreNumericLiteralTypes: { type: "boolean", default: false },
+          ignoreReadonlyClassProperties: { type: "boolean", default: false },
+          ignoreTypeIndexes: { type: "boolean", default: false },
+          // === 自定义正则参数 ===
+          ignorePropertyPatterns: {
+            type: "array",
+            items: { type: "string" },
+            description: "Array of regex strings to ignore magic numbers assigned to specific properties"
+          },
+          ignoreCalleePatterns: {
+            type: "array",
+            items: { type: "string" },
+            description: "Array of regex strings to ignore magic numbers used as arguments for specific functions"
+          }
+        },
+        additionalProperties: false
+      }
+    ],
+    messages: {
+      useConst: "[Aegis] Number constants declarations must use 'const'.",
+      noMagic: "[Aegis] No magic number: {{raw}}."
+    }
+  },
+  create(context) {
+    const config = context.options[0] || {};
+    const detectObjects = !!config.detectObjects;
+    const enforceConst = !!config.enforceConst;
+    const ignore = config.ignore || [];
+    const ignoreArrayIndexes = !!config.ignoreArrayIndexes;
+    const ignoreDefaultValues = !!config.ignoreDefaultValues;
+    const ignoreClassFieldInitialValues = !!config.ignoreClassFieldInitialValues;
+    const ignoreEnums = !!config.ignoreEnums;
+    const ignoreNumericLiteralTypes = !!config.ignoreNumericLiteralTypes;
+    const ignoreReadonlyClassProperties = !!config.ignoreReadonlyClassProperties;
+    const ignoreTypeIndexes = !!config.ignoreTypeIndexes;
+    const ignorePropertyPatterns = (config.ignorePropertyPatterns || []).map(
+      (p) => new RegExp(p)
+    );
+    const ignoreCalleePatterns = (config.ignoreCalleePatterns || []).map(
+      (p) => new RegExp(p)
+    );
+    function isArrayIndex(node) {
+      return node.parent.type === "MemberExpression" && node.parent.property === node;
+    }
+    function isDefaultValue(node) {
+      return node.parent.type === "AssignmentPattern" && node.parent.right === node;
+    }
+    function isClassFieldInitialValue(node) {
+      return node.parent.type === "PropertyDefinition" && node.parent.value === node;
+    }
+    function isEnumMember(node) {
+      return node.parent.type === "TSEnumMember";
+    }
+    function isNumericLiteralType(node) {
+      return node.parent.type === "TSLiteralType" || // 兼容某些解析器结构
+      node.parent.type === "TSUnionType" && node.parent.types.includes(node);
+    }
+    function isReadonlyClassProperty(node) {
+      return node.parent.type === "PropertyDefinition" && node.parent.value === node && node.parent.readonly;
+    }
+    function isTypeIndex(node) {
+      return node.parent.type === "TSIndexedAccessType" && node.parent.indexType === node;
+    }
+    function isIgnoredProperty(node) {
+      let current = node;
+      if (current.parent.type === "UnaryExpression" && ["+", "-"].includes(current.parent.operator)) {
+        current = current.parent;
+      }
+      if (current.parent.type === "Property" && current.parent.value === current) {
+        const keyNode = current.parent.key;
+        let keyName = null;
+        if (keyNode.type === "Identifier") keyName = keyNode.name;
+        else if (keyNode.type === "Literal") keyName = String(keyNode.value);
+        if (keyName && ignorePropertyPatterns.some((regex) => regex.test(keyName)))
+          return true;
+      }
+      if (current.parent.type === "JSXExpressionContainer" && current.parent.parent.type === "JSXAttribute") {
+        const attrName = current.parent.parent.name.name;
+        if (attrName && ignorePropertyPatterns.some((regex) => regex.test(attrName)))
+          return true;
+      }
+      return false;
+    }
+    function isIgnoredCallee(node) {
+      let current = node;
+      while (current.parent) {
+        if (current.parent.type === "CallExpression" || current.parent.type === "NewExpression") {
+          const callee = current.parent.callee;
+          let calleeName = null;
+          if (callee.type === "Identifier") {
+            calleeName = callee.name;
+          } else if (callee.type === "MemberExpression") {
+            if (callee.property.type === "Identifier") {
+              calleeName = callee.property.name;
+            }
+          }
+          if (calleeName && ignoreCalleePatterns.some((regex) => regex.test(calleeName))) {
+            return true;
+          }
+          break;
+        }
+        if (current.parent.type === "ConditionalExpression" || current.parent.type === "LogicalExpression" || current.parent.type === "ChainExpression") {
+          current = current.parent;
+        } else {
+          break;
+        }
+      }
+      return false;
+    }
+    function isInsideConstDeclaration(node) {
+      let current = node;
+      while (current.parent) {
+        const parent = current.parent;
+        if (parent.type === "VariableDeclarator" && parent.init === current) {
+          return parent.parent.kind === "const";
+        }
+        if (parent.type === "ObjectExpression" || parent.type === "ArrayExpression" || parent.type === "Property" || parent.type === "UnaryExpression" || parent.type === "ConditionalExpression" || parent.type === "LogicalExpression" || parent.type === "ChainExpression") {
+          current = parent;
+        } else {
+          break;
+        }
+      }
+      return false;
+    }
+    return {
+      Literal(node) {
+        const raw = node.raw;
+        const value = node.value;
+        if (typeof value !== "number") return;
+        if (ignore.includes(value)) return;
+        if (ignoreArrayIndexes && isArrayIndex(node)) return;
+        if (ignoreDefaultValues && isDefaultValue(node)) return;
+        if (ignoreClassFieldInitialValues && isClassFieldInitialValue(node))
+          return;
+        if (ignoreEnums && isEnumMember(node)) return;
+        if (ignoreNumericLiteralTypes && isNumericLiteralType(node)) return;
+        if (ignoreReadonlyClassProperties && isReadonlyClassProperty(node))
+          return;
+        if (ignoreTypeIndexes && isTypeIndex(node)) return;
+        if (!detectObjects && node.parent.type === "Property" && node.parent.value === node)
+          return;
+        if (isIgnoredProperty(node)) return;
+        if (isIgnoredCallee(node)) return;
+        if (isInsideConstDeclaration(node)) return;
+        let currentForEnforce = node;
+        if (currentForEnforce.parent.type === "UnaryExpression" && ["+", "-"].includes(currentForEnforce.parent.operator)) {
+          currentForEnforce = currentForEnforce.parent;
+        }
+        if (enforceConst && currentForEnforce.parent.type === "VariableDeclarator" && currentForEnforce.parent.init === currentForEnforce) {
+          if (currentForEnforce.parent.parent.kind !== "const") {
+            context.report({ node, messageId: "useConst" });
+          }
+          return;
+        }
+        context.report({
+          node,
+          messageId: "noMagic",
+          data: { raw }
+        });
+      }
+    };
+  }
+};
+
 // package.json
 var package_default = {
   name: "eslint-plugin-aegis",
@@ -276,7 +479,8 @@ var plugin = {
   // 1. 导出规则定义
   rules: {
     "no-duplicate-string": no_duplicate_string_default,
-    "no-implicit-complex-object": no_implicit_complex_object_default
+    "no-implicit-complex-object": no_implicit_complex_object_default,
+    "no-magic-numbers-strict": no_magic_numbers_strict_default
     // 'future-rule': futureRule // 以后加规则就在这里加一行
   }
 };
