@@ -192,10 +192,31 @@ var no_implicit_complex_object_default = {
     const ignorePatterns = (config.ignorePatterns || []).map(
       (p) => new RegExp(p)
     );
+    function checkComplexType(node, name) {
+      if (node.typeAnnotation && node.typeAnnotation.typeAnnotation && node.typeAnnotation.typeAnnotation.type === "TSTypeLiteral") {
+        const typeLiteral = node.typeAnnotation.typeAnnotation;
+        const propertyCount = typeLiteral.members.length;
+        if (propertyCount >= threshold) {
+          context.report({
+            node,
+            messageId: "missingType",
+            data: {
+              name: name || "parameter",
+              props: propertyCount
+            }
+          });
+          return true;
+        }
+      }
+      return false;
+    }
     return {
       VariableDeclarator(node) {
         const varName = node.id.name;
         if (varName && ignorePatterns.some((regex) => regex.test(varName))) {
+          return;
+        }
+        if (checkComplexType(node.id, varName)) {
           return;
         }
         let init = node.init;
@@ -230,6 +251,20 @@ var no_implicit_complex_object_default = {
             }
           });
         }
+      },
+      "FunctionDeclaration, FunctionExpression, ArrowFunctionExpression"(node) {
+        node.params.forEach((param) => {
+          let paramName = "";
+          if (param.type === "Identifier") {
+            paramName = param.name;
+          } else if (param.type === "AssignmentPattern" && param.left.type === "Identifier") {
+            paramName = param.left.name;
+          }
+          if (paramName && ignorePatterns.some((regex) => regex.test(paramName))) {
+            return;
+          }
+          checkComplexType(param, paramName || "parameter");
+        });
       }
     };
   }
@@ -426,7 +461,7 @@ var no_magic_numbers_strict_default = {
 // package.json
 var package_default = {
   name: "eslint-plugin-aegis",
-  version: "1.0.1",
+  version: "1.0.2",
   description: "Aegis (\u57C3\u7678\u65AF) \u662F\u5E0C\u814A\u795E\u8BDD\u4E2D\u96C5\u5178\u5A1C\u548C\u5B99\u65AF\u6301\u6709\u7684\u795E\u76FE\u3002\u5B83\u8C61\u5F81\u7740\u4FDD\u62A4\u3001\u6743\u5A01\u4E0E\u667A\u6167\u3002",
   type: "module",
   main: "./dist/index.cjs",

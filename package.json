@@ -1,6 +1,6 @@
 {
   "name": "eslint-plugin-aegis",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Aegis (埃癸斯) 是希腊神话中雅典娜和宙斯持有的神盾。它象征着保护、权威与智慧。",
   "type": "module",
   "main": "./dist/index.cjs",
