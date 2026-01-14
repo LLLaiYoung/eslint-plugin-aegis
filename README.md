@@ -14,7 +14,7 @@ yarn add eslint-plugin-aegis -D
 npm install eslint-plugin-aegis --save-dev
 ```
 
-## 使用 (Flat Config)
+## 使用
 
 自 ESLint v9 开始，推荐使用 Flat Config。在你的 `eslint.config.js` 中引入并配置：
 
@@ -79,8 +79,8 @@ export default [
 
 ```javascript
 "aegis/no-duplicate-string": ["error", {
-  "threshold": 3,
-  "minLength": 5,
+  "threshold": 2,
+  "minLength": 2,
   "ignoreStrings": [
     "application/json", // 常见 MIME
     "YYYY-MM-DD" // 日期格式
@@ -121,6 +121,16 @@ export default [
 
 1.  **Vue 3 支持**：自动识别并检查 `ref({ ... })` 和 `reactive({ ... })` 中的对象。
 2.  **泛型支持**：如果已经写了泛型（如 `ref<IUser>({ ... })`），则会自动跳过检查。
+3.  **函数参数支持**：自动检查函数参数中的复杂内联类型定义（如 `function(user: { name: string, age: number })`）。
+
+#### 示例配置
+
+```javascript
+"aegis/no-implicit-complex-object": ["error", {
+  "propertyThreshold": 2,
+  "ignorePatterns": [".*Rules$"]
+}]
+```
 
 ---
 
