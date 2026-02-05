@@ -230,27 +230,21 @@ var noImplicitComplexObject = {
     const threshold = config.propertyThreshold || 2; // 默认：超过2个属性就必须写类型
     const ignoreVue3Wrappers = config.ignoreVue3Wrappers || false; // 默认不忽略，即开启检测 (Vue 3 特性)
     const ignorePatterns = (config.ignorePatterns || []).map(
-      (p) => new RegExp(p)
+      (p) => new RegExp(p),
     );
 
     /**
-     * 检查是否有复杂的内联类型定义 (TSTypeLiteral)
+     * 检查 TSTypeLiteral 是否超过阈值
      */
-    function checkComplexType(node, name) {
-      if (
-        node.typeAnnotation &&
-        node.typeAnnotation.typeAnnotation &&
-        node.typeAnnotation.typeAnnotation.type === "TSTypeLiteral"
-      ) {
-        const typeLiteral = node.typeAnnotation.typeAnnotation;
-        const propertyCount = typeLiteral.members.length;
-
+    function checkTypeLiteral(typeNode, reportNode, name) {
+      if (typeNode.type === "TSTypeLiteral") {
+        const propertyCount = typeNode.members.length;
         if (propertyCount >= threshold) {
           context.report({
-            node: node,
+            node: reportNode,
             messageId: "missingType",
             data: {
-              name: name || "parameter",
+              name: name || "property",
               props: propertyCount,
             },
           });
@@ -260,7 +254,42 @@ var noImplicitComplexObject = {
       return false;
     }
 
+    /**
+     * 检查是否有复杂的内联类型定义 (TSTypeLiteral)
+     */
+    function checkComplexType(node, name) {
+      if (node.typeAnnotation && node.typeAnnotation.typeAnnotation) {
+        return checkTypeLiteral(node.typeAnnotation.typeAnnotation, node, name);
+      }
+      return false;
+    }
+
     return {
+      TSPropertySignature(node) {
+        const propName = node.key.name;
+
+        // 0. 检查是否匹配忽略正则
+        if (propName && ignorePatterns.some((regex) => regex.test(propName))) {
+          return;
+        }
+
+        if (!node.typeAnnotation || !node.typeAnnotation.typeAnnotation) {
+          return;
+        }
+
+        const typeNode = node.typeAnnotation.typeAnnotation;
+
+        // 1. 检查直接的内联类型 (item: { ... })
+        if (checkTypeLiteral(typeNode, node, propName)) {
+          return;
+        }
+
+        // 2. 检查数组内的内联类型 (list: { ... }[])
+        if (typeNode.type === "TSArrayType") {
+          checkTypeLiteral(typeNode.elementType, node, propName);
+        }
+      },
+
       VariableDeclarator(node) {
         const varName = node.id.name;
 
@@ -687,7 +716,7 @@ var noMagicNumberStrict = {
 };
 
 var name = "eslint-plugin-aegis";
-var version = "1.0.2";
+var version = "1.0.3";
 var pkg = {
 	name: name,
 	version: version};

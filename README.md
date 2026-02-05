@@ -122,6 +122,7 @@ export default [
 1.  **Vue 3 支持**：自动识别并检查 `ref({ ... })` 和 `reactive({ ... })` 中的对象。
 2.  **泛型支持**：如果已经写了泛型（如 `ref<IUser>({ ... })`），则会自动跳过检查。
 3.  **函数参数支持**：自动检查函数参数中的复杂内联类型定义（如 `function(user: { name: string, age: number })`）。
+4.  **Interface 与 Type 支持**：支持检查 Interface 和 Type Alias 中的复杂内联类型定义（包括嵌套对象和数组元素），例如 `interface A { list: { name: string }[] }`。
 
 #### 示例配置
 
